@@ -1,7 +1,11 @@
+
 name: Build Toon Talk AI APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -10,21 +14,21 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Find and extract project ZIP
         shell: bash
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)
+          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
           if [ -z "$ZIP" ]; then
-            echo 'ERROR: Project ZIP not found in repository root.'
+            echo "ERROR: Project ZIP not found in repository root"
             exit 1
           fi
           mkdir -p project
           unzip -q "$ZIP" -d project
-          echo 'Project ZIP extracted.'
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -32,18 +36,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
       - name: Build APK
         shell: bash
         run: |
-          GRADLEW=$(find project -type f -name gradlew -print -quit)
-          if [ -z "$GRADLEW" ]; then
-            echo 'ERROR: gradlew not found. The ZIP may not contain a complete Android project.'
-            find project -maxdepth 4 -type f | head -100
+          SETTINGS=$(find project -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found in project ZIP"
             exit 1
           fi
-          chmod +x "$GRADLEW"
-          cd "$(dirname "$GRADLEW")"
-          ./gradlew assembleDebug --no-daemon
+          cd "$(dirname "$SETTINGS")"
+          gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
