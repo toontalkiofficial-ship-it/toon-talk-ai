@@ -1,78 +1,89 @@
-
 name: Build Toon Talk AI APK
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p project
-
-          ZIP="$(find . -maxdepth 3 -type f -iname '*.zip' -not -path './.git/*' | head -n 1)"
-
-          if [[ -z "$ZIP" ]]; then
-            echo "ERROR: Repository mein koi ZIP file nahi mili."
-            exit 1
-          fi
-
-          echo "Extracting: $ZIP"
-          unzip -oq "$ZIP" -d project
-
-          echo "Extracted project files:"
-          find project -maxdepth 4 -type f | head -n 80
-
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
+
+      - name: Find and extract Android project (including nested ZIPs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ttai-extracted"
+          ROOT="$RUNNER_TEMP/ttai-extracted"
+          mapfile -d '' archives < <(find "$GITHUB_WORKSPACE" -maxdepth 4 -type f -iname '*.zip' -not -path '*/.git/*' -print0)
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo 'ERROR: Repository mein koi .zip file nahi mili.'
+            exit 1
+          fi
+          for archive in "${archives[@]}"; do
+            target="$ROOT/$(basename "${archive%.zip}")"
+            mkdir -p "$target"
+            echo "Extracting $archive"
+            unzip -oq "$archive" -d "$target"
+          done
+          for round in 1 2 3 4; do
+            mapfile -d '' nested < <(find "$ROOT" -type f -iname '*.zip' -print0)
+            [ "${#nested[@]}" -gt 0 ] || break
+            for archive in "${nested[@]}"; do
+              target="${archive%.zip}-extracted"
+              if [ ! -d "$target" ]; then
+                mkdir -p "$target"
+                echo "Extracting nested archive $archive"
+                unzip -oq "$archive" -d "$target"
+              fi
+            done
+          done
+          settings_file=$(find "$ROOT" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+          if [ -z "$settings_file" ]; then
+            echo 'ERROR: settings.gradle/settings.gradle.kts nahi mila. ZIP mein Android project nahi hai.'
+            find "$ROOT" -maxdepth 6 -type f | head -160
+            exit 1
+          fi
+          project_dir="$(dirname "$settings_file")"
+          if [ ! -f "$project_dir/app/build.gradle" ] && [ ! -f "$project_dir/app/build.gradle.kts" ]; then
+            echo "ERROR: Gradle project mila ($project_dir), lekin app/build.gradle nahi mila."
+            find "$project_dir" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          echo "ANDROID_PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
+          echo "Android project found: $project_dir"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.9'
 
-      - name: Build APK
+      - name: Build debug APK
         shell: bash
         run: |
           set -euo pipefail
+          cd "$ANDROID_PROJECT_DIR"
+          gradle --no-daemon --stacktrace assembleDebug
+          mkdir -p "$GITHUB_WORKSPACE/apk-artifact"
+          find app/build/outputs/apk -type f -name '*.apk' -exec cp {} "$GITHUB_WORKSPACE/apk-artifact/" \;
+          test -n "$(find "$GITHUB_WORKSPACE/apk-artifact" -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
-          BUILD_FILE="$(find project -type f \( -name build.gradle -o -name build.gradle.kts \) -not -path '*/build/*' | head -n 1)"
-
-          if [[ -z "$BUILD_FILE" ]]; then
-            echo "ERROR: Android Gradle build file nahi mili."
-            exit 1
-          fi
-
-          PROJECT_DIR="$(dirname "$BUILD_FILE")"
-
-          while [[ "$PROJECT_DIR" != "." && ! -f "$PROJECT_DIR/settings.gradle" && ! -f "$PROJECT_DIR/settings.gradle.kts" ]]; do
-            PROJECT_DIR="$(dirname "$PROJECT_DIR")"
-          done
-
-          cd "$PROJECT_DIR"
-          gradle assembleDebug
-
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Toon-Talk-AI-APK
-          path: project/**/build/outputs/apk/debug/*.apk
+          path: apk-artifact/*.apk
           if-no-files-found: error
