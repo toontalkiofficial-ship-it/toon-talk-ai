@@ -1,3 +1,4 @@
+
 name: Build Toon Talk AI APK
 
 on:
@@ -13,49 +14,29 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIPs
+      - name: Find and extract project ZIP
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p project
-          mapfile -d '' ZIPS < <(find . -maxdepth 1 -type f -iname "*.zip" -print0)
-          if [ "\${#ZIPS[@]}" -eq 0 ]; then
-            echo "ERROR: No ZIP files found in repository root"
+
+          ZIP="$(find . -maxdepth 3 -type f -iname '*.zip' -not -path './.git/*' | head -n 1)"
+
+          if [[ -z "$ZIP" ]]; then
+            echo "ERROR: Repository mein koi ZIP file nahi mili."
             exit 1
           fi
-          for ZIP in "\${ZIPS[@]}"; do
-            echo "Extracting $ZIP"
-            unzip -oq "$ZIP" -d project
-          done
 
-          for ROUND in 1 2 3; do
-            SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-            if [ -n "$SETTINGS" ]; then
-              break
-            fi
-            mapfile -d '' NESTED_ZIPS < <(find project -type f -iname "*.zip" -print0)
-            if [ "\${#NESTED_ZIPS[@]}" -eq 0 ]; then
-              break
-            fi
-            for ZIP in "\${NESTED_ZIPS[@]}"; do
-              echo "Extracting nested archive $ZIP"
-              unzip -oq "$ZIP" -d project
-              rm -f "$ZIP"
-            done
-          done
+          echo "Extracting: $ZIP"
+          unzip -oq "$ZIP" -d project
 
-          SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle not found after extracting project ZIPs"
-            echo "Files extracted:"
-            find project -maxdepth 4 -type f | head -100
-            exit 1
-          fi
-          echo "Android project found at $(dirname "$SETTINGS")"
+          echo "Extracted project files:"
+          find project -maxdepth 4 -type f | head -n 80
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -66,15 +47,28 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.7'
 
       - name: Build APK
         shell: bash
         run: |
           set -euo pipefail
-          SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          cd "$(dirname "$SETTINGS")"
-          gradle --no-daemon assembleDebug
+
+          BUILD_FILE="$(find project -type f \( -name build.gradle -o -name build.gradle.kts \) -not -path '*/build/*' | head -n 1)"
+
+          if [[ -z "$BUILD_FILE" ]]; then
+            echo "ERROR: Android Gradle build file nahi mili."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$BUILD_FILE")"
+
+          while [[ "$PROJECT_DIR" != "." && ! -f "$PROJECT_DIR/settings.gradle" && ! -f "$PROJECT_DIR/settings.gradle.kts" ]]; do
+            PROJECT_DIR="$(dirname "$PROJECT_DIR")"
+          done
+
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
