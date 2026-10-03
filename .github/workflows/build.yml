@@ -1,4 +1,3 @@
-
 name: Build Toon Talk AI APK
 
 on:
@@ -14,21 +13,49 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIP
+      - name: Find and extract project ZIPs
         shell: bash
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: Project ZIP not found in repository root"
+          set -euo pipefail
+          mkdir -p project
+          mapfile -d '' ZIPS < <(find . -maxdepth 1 -type f -iname "*.zip" -print0)
+          if [ "\${#ZIPS[@]}" -eq 0 ]; then
+            echo "ERROR: No ZIP files found in repository root"
             exit 1
           fi
-          mkdir -p project
-          unzip -q "$ZIP" -d project
+          for ZIP in "\${ZIPS[@]}"; do
+            echo "Extracting $ZIP"
+            unzip -oq "$ZIP" -d project
+          done
+
+          for ROUND in 1 2 3; do
+            SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+            if [ -n "$SETTINGS" ]; then
+              break
+            fi
+            mapfile -d '' NESTED_ZIPS < <(find project -type f -iname "*.zip" -print0)
+            if [ "\${#NESTED_ZIPS[@]}" -eq 0 ]; then
+              break
+            fi
+            for ZIP in "\${NESTED_ZIPS[@]}"; do
+              echo "Extracting nested archive $ZIP"
+              unzip -oq "$ZIP" -d project
+              rm -f "$ZIP"
+            done
+          done
+
+          SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found after extracting project ZIPs"
+            echo "Files extracted:"
+            find project -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          echo "Android project found at $(dirname "$SETTINGS")"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -44,11 +71,8 @@ jobs:
       - name: Build APK
         shell: bash
         run: |
-          SETTINGS=$(find project -name settings.gradle -o -name settings.gradle.kts | head -n 1)
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle not found in project ZIP"
-            exit 1
-          fi
+          set -euo pipefail
+          SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
           cd "$(dirname "$SETTINGS")"
           gradle --no-daemon assembleDebug
 
