@@ -38,6 +38,14 @@ class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val prefs by lazy { getSharedPreferences("toon_talk_private", MODE_PRIVATE) }
     private lateinit var apiKeyInput: EditText
+    private lateinit var authNameInput: EditText
+    private lateinit var authEmailInput: EditText
+    private lateinit var authPasswordInput: EditText
+    private lateinit var authStatus: TextView
+    private lateinit var signUpButton: Button
+    private lateinit var signInButton: Button
+    private lateinit var signOutButton: Button
+    private val supabaseAuth by lazy { SupabaseAuthClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY) }
     private lateinit var promptInput: EditText
     private lateinit var imageModelInput: Spinner
     private lateinit var videoModelInput: Spinner
@@ -59,6 +67,30 @@ class MainActivity : AppCompatActivity() {
         window.navigationBarColor = Color.rgb(23, 20, 43)
         buildUi()
         apiKeyInput.setText(prefs.getString("pollinations_key", ""))
+        val savedEmail = prefs.getString("supabase_email", null)
+        authStatus.text = if (prefs.getString("supabase_access_token", null) != null) {
+            "Signed in as ${savedEmail ?: "your account"} (saved session; sign in again if it expires)."
+        } else {
+            "Create an account or sign in to prepare your public profile."
+        }
+        signUpButton.setOnClickListener { performAuth(signUp = true) }
+        signInButton.setOnClickListener { performAuth(signUp = false) }
+        signOutButton.setOnClickListener {
+            val token = prefs.getString("supabase_access_token", null)
+            signOutButton.isEnabled = false
+            executor.execute {
+                var message = "Signed out on this device."
+                try { if (token != null) supabaseAuth.signOut(token) } catch (e: Exception) {
+                    message = "Local session cleared. Server sign-out: ${e.message ?: "unavailable"}"
+                }
+                prefs.edit().remove("supabase_access_token").remove("supabase_refresh_token")
+                    .remove("supabase_email").apply()
+                runOnUiThread {
+                    signOutButton.isEnabled = true
+                    authStatus.text = message
+                }
+            }
+        }
         connectButton.setOnClickListener {
             val key = apiKeyInput.text.toString().trim()
             if (!key.startsWith("sk_")) {
@@ -114,6 +146,40 @@ class MainActivity : AppCompatActivity() {
         }
         body.addView(title)
         body.addView(subtitle, marginParams(top = 4, bottom = 18))
+
+        body.addView(label("Public account — Supabase"))
+        authNameInput = EditText(this).apply {
+            hint = "Display name (for new account)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            setTextColor(Color.BLACK); setHintTextColor(Color.GRAY); setBackgroundColor(Color.WHITE)
+        }
+        body.addView(authNameInput, marginParams(top = 6))
+        authEmailInput = EditText(this).apply {
+            hint = "Email address"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            setTextColor(Color.BLACK); setHintTextColor(Color.GRAY); setBackgroundColor(Color.WHITE)
+        }
+        body.addView(authEmailInput, marginParams(top = 6))
+        authPasswordInput = EditText(this).apply {
+            hint = "Password (at least 6 characters)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setTextColor(Color.BLACK); setHintTextColor(Color.GRAY); setBackgroundColor(Color.WHITE)
+        }
+        body.addView(authPasswordInput, marginParams(top = 6))
+        val authButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        signUpButton = Button(this).apply { text = "Create account"; isAllCaps = false }
+        signInButton = Button(this).apply { text = "Sign in"; isAllCaps = false }
+        authButtons.addView(signUpButton, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(4) })
+        authButtons.addView(signInButton, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginStart = dp(4) })
+        body.addView(authButtons, marginParams(top = 6))
+        signOutButton = Button(this).apply { text = "Sign out"; isAllCaps = false }
+        body.addView(signOutButton, marginParams(top = 2))
+        authStatus = TextView(this).apply {
+            text = "Supabase account setup"
+            textSize = 13f
+            setTextColor(Color.rgb(66, 61, 84))
+        }
+        body.addView(authStatus, marginParams(top = 4, bottom = 18))
         body.addView(label("Pollinations connection"))
         apiKeyInput = EditText(this).apply {
             hint = "Paste your authorized sk_ API key"
@@ -221,6 +287,52 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(adContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         setContentView(root)
+    }
+
+    private fun performAuth(signUp: Boolean) {
+        val email = authEmailInput.text.toString().trim()
+        val password = authPasswordInput.text.toString()
+        val displayName = authNameInput.text.toString().trim()
+        if (!email.contains("@") || email.length < 5) {
+            authStatus.text = "Valid email address likho."
+            return
+        }
+        if (password.length < 6) {
+            authStatus.text = "Password kam se kam 6 characters ka hona chahiye."
+            return
+        }
+        if (signUp && displayName.isBlank()) {
+            authStatus.text = "Account ke liye display name likho."
+            return
+        }
+        if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_PUBLISHABLE_KEY.isBlank()) {
+            authStatus.text = "Supabase app config missing hai. Build workflow mein SUPABASE_URL aur SUPABASE_PUBLISHABLE_KEY set karo."
+            return
+        }
+        signUpButton.isEnabled = false
+        signInButton.isEnabled = false
+        authStatus.text = if (signUp) "Account create ho raha hai..." else "Sign in ho raha hai..."
+        executor.execute {
+            try {
+                val result = if (signUp) supabaseAuth.signUp(email, password, displayName)
+                    else supabaseAuth.signIn(email, password)
+                if (result.accessToken != null) {
+                    prefs.edit()
+                        .putString("supabase_access_token", result.accessToken)
+                        .putString("supabase_refresh_token", result.refreshToken)
+                        .putString("supabase_email", result.email ?: email)
+                        .apply()
+                }
+                runOnUiThread { authStatus.text = result.message }
+            } catch (e: Exception) {
+                runOnUiThread { authStatus.text = "Account error: ${e.message ?: "network error"}" }
+            } finally {
+                runOnUiThread {
+                    signUpButton.isEnabled = true
+                    signInButton.isEnabled = true
+                }
+            }
+        }
     }
 
     private fun generateMedia(video: Boolean) {
