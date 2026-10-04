@@ -14,6 +14,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         manifestPlaceholders["adMobAppId"] = (project.findProperty("ADMOB_APP_ID") as String?) ?: "ca-app-pub-3940256099942544~3347511713"
+        buildConfigField("String", "SUPABASE_URL", "\\\"${(project.findProperty("SUPABASE_URL") as String?) ?: ""}\\\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\\\"${(project.findProperty("SUPABASE_PUBLISHABLE_KEY") as String?) ?: ""}\\\"")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"${(project.findProperty("ADMOB_BANNER_ID") as String?) ?: "ca-app-pub-3940256099942544/6300978111"}\"")
     }
 
