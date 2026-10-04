@@ -64,16 +64,16 @@ class AuthActivity : Activity() {
         content.addView(email, params(bottom = 10))
         content.addView(password, params(bottom = 12))
         signInButton = button("Sign in") {
-            runAuth { SupabaseAuth.signIn(this, email.text.toString().trim(), password.text.toString()); "Signed in successfully." }
+            runAuth { address, pass -> SupabaseAuth.signIn(this, address, pass); "Signed in successfully." }
         }
         signUpButton = button("Create account") {
-            runAuth { SupabaseAuth.signUp(this, email.text.toString().trim(), password.text.toString()) }
+            runAuth { address, pass -> SupabaseAuth.signUp(this, address, pass) }
         }
         resetButton = button("Reset password") {
             val address = email.text.toString().trim()
             if (address.isBlank() || !address.contains("@")) showStatus("Enter your email address first.")
-            else runAuth(requirePassword = false) {
-                SupabaseAuth.resetPassword(this, address)
+            else runAuth(requirePassword = false) { addressValue, _ ->
+                SupabaseAuth.resetPassword(this, addressValue)
                 "If the account exists, a password reset email has been requested."
             }
         }
@@ -94,7 +94,7 @@ class AuthActivity : Activity() {
         text = title; isAllCaps = false; setOnClickListener { action() }
     }
 
-    private fun runAuth(requirePassword: Boolean = true, action: () -> String) {
+    private fun runAuth(requirePassword: Boolean = true, action: (String, String) -> String) {
         val address = email.text.toString().trim()
         val pass = password.text.toString()
         if (address.isBlank() || !address.contains("@")) { showStatus("Enter a valid email address."); return }
@@ -102,7 +102,7 @@ class AuthActivity : Activity() {
         setBusy(true)
         executor.execute {
             try {
-                val message = action()
+                val message = action(address, pass)
                 runOnUiThread {
                     setBusy(false); showStatus(message)
                     if (SupabaseAuth.hasSession(this)) openGenerator()
