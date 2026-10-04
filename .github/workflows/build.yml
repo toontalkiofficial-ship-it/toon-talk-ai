@@ -77,10 +77,13 @@ jobs:
 
       - name: Build debug APK
         shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
           cd "$ANDROID_PROJECT_DIR"
-          gradle --no-daemon --stacktrace assembleDebug
+          gradle --no-daemon --stacktrace -PSUPABASE_URL="$SUPABASE_URL" -PSUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" assembleDebug
           mkdir -p "$GITHUB_WORKSPACE/apk-artifact"
           find app/build/outputs/apk -type f -name '*.apk' -exec cp {} "$GITHUB_WORKSPACE/apk-artifact/" \;
           test -n "$(find "$GITHUB_WORKSPACE/apk-artifact" -maxdepth 1 -type f -name '*.apk' -print -quit)"
