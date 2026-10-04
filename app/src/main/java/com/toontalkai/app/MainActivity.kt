@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
                 setStatus("Pollinations API key chahiye. Pollinations account se apni authorized key paste karo.")
             } else {
                 prefs.edit().putString("pollinations_key", key).apply()
-                setStatus("Key is device par save ho gayi. Generate button se connection test karo.")
+                setStatus("Key is device par save ho gayi. Generate button se AI connection test karo.")
             }
         }
         imageButton.setOnClickListener { generateMedia(video = false) }
@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         }
         body.addView(apiKeyInput, marginParams(top = 6))
         connectButton = Button(this).apply {
-            text = "Save / Connect AI"
+            text = "Save API Key"
             isAllCaps = false
         }
         body.addView(connectButton, marginParams(top = 8, bottom = 18))
