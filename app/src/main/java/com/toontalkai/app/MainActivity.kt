@@ -337,16 +337,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun generateMedia(video: Boolean) {
         val key = apiKeyInput.text.toString().trim().ifBlank { prefs.getString("pollinations_key", "").orEmpty() }
+        val accessToken = prefs.getString("supabase_access_token", null)
+        val useBackend = !accessToken.isNullOrBlank()
         val prompt = promptInput.text.toString().trim()
-        if (!key.startsWith("sk_")) {
-            setStatus("Pehle authorized Pollinations API key paste karke Save / Connect AI dabao.")
+        if (!useBackend && !key.startsWith("sk_")) {
+            setStatus("Public account se generate karne ke liye pehle sign in karo. Personal mode mein authorized Pollinations API key bhi use kar sakte ho.")
             return
         }
         if (prompt.length < 3) {
             setStatus("Scene ka description likho, phir generate karo.")
             return
         }
-        prefs.edit().putString("pollinations_key", key).apply()
+        if (!useBackend) prefs.edit().putString("pollinations_key", key).apply()
         val selectedImageModelPosition = imageModelInput.selectedItemPosition
         val selectedVideoModelPosition = videoModelInput.selectedItemPosition
         // Prevent saving stale output if the next generation fails.
@@ -369,17 +371,32 @@ class MainActivity : AppCompatActivity() {
                     1 -> "google/veo-3.1-fast"
                     else -> "bytedance/seedance-2.0"
                 }
-                val endpoint = if (video) {
+                val selectedModel = if (video) videoModel else imageModel
+                val endpoint = if (useBackend) {
+                    BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/generate"
+                } else if (video) {
                     "https://gen.pollinations.ai/video/$encoded?model=${URLEncoder.encode(videoModel, "UTF-8")}&duration=4"
                 } else {
                     "https://gen.pollinations.ai/image/$encoded?model=${URLEncoder.encode(imageModel, "UTF-8")}&width=1024&height=1024&safe=true"
                 }
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
+                    requestMethod = if (useBackend) "POST" else "GET"
                     connectTimeout = 30000
-                    readTimeout = if (video) 240000 else 180000
-                    setRequestProperty("Authorization", "Bearer $key")
+                    readTimeout = if (useBackend) 125000 else if (video) 240000 else 180000
+                    setRequestProperty("Authorization", "Bearer ${if (useBackend) accessToken else key}")
                     setRequestProperty("Accept", if (video) "video/mp4, application/json, */*" else "image/*, application/json")
+                    if (useBackend) {
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                }
+                if (useBackend) {
+                    val requestBody = JSONObject()
+                        .put("kind", if (video) "video" else "image")
+                        .put("model", selectedModel)
+                        .put("prompt", prompt)
+                        .put("idempotencyKey", java.util.UUID.randomUUID().toString())
+                    connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(requestBody.toString()) }
                 }
                 try {
                     val code = connection.responseCode
