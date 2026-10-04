@@ -18,6 +18,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
@@ -37,6 +39,8 @@ class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("toon_talk_private", MODE_PRIVATE) }
     private lateinit var apiKeyInput: EditText
     private lateinit var promptInput: EditText
+    private lateinit var imageModelInput: Spinner
+    private lateinit var videoModelInput: Spinner
     private lateinit var status: TextView
     private lateinit var resultImage: ImageView
     private lateinit var resultVideo: VideoView
@@ -119,6 +123,33 @@ class MainActivity : AppCompatActivity() {
             isAllCaps = false
         }
         body.addView(connectButton, marginParams(top = 8, bottom = 18))
+        body.addView(label("Image quality / model"))
+        imageModelInput = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf(
+                    "Budget — FLUX Schnell",
+                    "Balanced — FLUX",
+                    "Premium — FLUX.2 Pro",
+                    "Premium — GPT Image"
+                )
+            )
+        }
+        body.addView(imageModelInput, marginParams(top = 4, bottom = 12))
+        body.addView(label("Video quality / model"))
+        videoModelInput = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf(
+                    "Budget — Seedance 1 Pro Fast",
+                    "Balanced — Veo 3.1 Fast",
+                    "Premium — Seedance 2.0"
+                )
+            )
+        }
+        body.addView(videoModelInput, marginParams(top = 4, bottom = 12))
         body.addView(label("Describe your scene"))
         promptInput = EditText(this).apply {
             hint = "Example: Debu, a young village boy in a blue shirt, cinematic 3D cartoon style..."
@@ -165,7 +196,7 @@ class MainActivity : AppCompatActivity() {
         body.addView(saveButton, marginParams(bottom = 12))
         saveButton.setOnClickListener { saveGeneratedMedia() }
         val note = TextView(this).apply {
-            text = "Note: AI generation can use your Pollinations balance. Ad space currently uses Google's test ad ID; real earnings require your own approved AdMob app and ad-unit IDs."
+            text = "Model cost and availability can change. Check Pollinations model pricing before generating; premium models may use more balance. Ads currently use Google test IDs and do not earn revenue."
             textSize = 12f
             setTextColor(Color.rgb(105, 99, 125))
         }
@@ -197,10 +228,21 @@ class MainActivity : AppCompatActivity() {
         executor.execute {
             try {
                 val encoded = URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
+                val imageModel = when (imageModelInput.selectedItemPosition) {
+                    0 -> "black-forest-labs/flux.1-schnell"
+                    1 -> "flux"
+                    2 -> "black-forest-labs/flux.2-pro"
+                    else -> "openai/gpt-image-1.5"
+                }
+                val videoModel = when (videoModelInput.selectedItemPosition) {
+                    0 -> "bytedance/seedance-1-pro-fast"
+                    1 -> "google/veo-3.1-fast"
+                    else -> "bytedance/seedance-2.0"
+                }
                 val endpoint = if (video) {
-                    "https://gen.pollinations.ai/video/$encoded?model=google%2Fveo-3.1-fast&duration=4"
+                    "https://gen.pollinations.ai/video/$encoded?model=${URLEncoder.encode(videoModel, "UTF-8")}&duration=4"
                 } else {
-                    "https://gen.pollinations.ai/image/$encoded?model=flux&width=1024&height=1024&safe=true"
+                    "https://gen.pollinations.ai/image/$encoded?model=${URLEncoder.encode(imageModel, "UTF-8")}&width=1024&height=1024&safe=true"
                 }
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
