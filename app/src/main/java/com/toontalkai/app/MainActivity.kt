@@ -224,17 +224,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
         prefs.edit().putString("pollinations_key", key).apply()
+        val selectedImageModelPosition = imageModelInput.selectedItemPosition
+        val selectedVideoModelPosition = videoModelInput.selectedItemPosition
         setBusy(true, if (video) "AI video ban raha hai. Ismein kuch minute lag sakte hain..." else "AI image ban rahi hai...")
         executor.execute {
             try {
                 val encoded = URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
-                val imageModel = when (imageModelInput.selectedItemPosition) {
+                val imageModel = when (selectedImageModelPosition) {
                     0 -> "black-forest-labs/flux.1-schnell"
                     1 -> "flux"
                     2 -> "black-forest-labs/flux.2-pro"
                     else -> "openai/gpt-image-1.5"
                 }
-                val videoModel = when (videoModelInput.selectedItemPosition) {
+                val videoModel = when (selectedVideoModelPosition) {
                     0 -> "bytedance/seedance-1-pro-fast"
                     1 -> "google/veo-3.1-fast"
                     else -> "bytedance/seedance-2.0"
