@@ -71,6 +71,7 @@ Deno.serve(async (req: Request) => {
     const message = reserveError.message ?? "";
     if (message.includes("insufficient_credits")) return json({ error: "insufficient_credits" }, 402);
     if (message.includes("account_unavailable")) return json({ error: "account_unavailable" }, 403);
+    if (message.includes("duplicate_request")) return json({ error: "duplicate_request" }, 409);
     return json({ error: "reservation_failed" }, 500);
   }
   const row = Array.isArray(reservation) ? reservation[0] : reservation;
