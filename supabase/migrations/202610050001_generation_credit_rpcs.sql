@@ -41,10 +41,8 @@ begin
   from public.generation_jobs j
   where j.user_id = p_user_id and j.idempotency_key = p_idempotency_key;
   if v_job_id is not null then
-    select coalesce(sum(l.amount),0) into v_balance
-    from public.credit_ledger l where l.user_id = p_user_id;
-    return query select v_job_id, v_balance;
-    return;
+    -- A retry must never start a second paid provider request for the same key.
+    raise exception 'duplicate_request' using errcode = '23505';
   end if;
 
   select coalesce(sum(l.amount),0) into v_balance
