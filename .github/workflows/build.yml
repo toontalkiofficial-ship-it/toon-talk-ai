@@ -20,51 +20,53 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          
 
-      - name: Find and extract Android project (including nested ZIPs)
+      - name: Find Android project
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ttai-extracted"
-          ROOT="$RUNNER_TEMP/ttai-extracted"
-          mapfile -d '' archives < <(find "$GITHUB_WORKSPACE" -maxdepth 4 -type f -iname '*.zip' -not -path '*/.git/*' -print0)
-          if [ "${#archives[@]}" -eq 0 ]; then
-            echo 'ERROR: Repository mein koi .zip file nahi mili.'
-            exit 1
-          fi
-          for archive in "${archives[@]}"; do
-            target="$ROOT/$(basename "${archive%.zip}")"
-            mkdir -p "$target"
-            echo "Extracting $archive"
-            unzip -oq "$archive" -d "$target"
-          done
-          for round in 1 2 3 4; do
-            mapfile -d '' nested < <(find "$ROOT" -type f -iname '*.zip' -print0)
-            [ "${#nested[@]}" -gt 0 ] || break
-            for archive in "${nested[@]}"; do
-              target="${archive%.zip}-extracted"
-              if [ ! -d "$target" ]; then
-                mkdir -p "$target"
-                echo "Extracting nested archive $archive"
-                unzip -oq "$archive" -d "$target"
-              fi
+          if [[ -f settings.gradle || -f settings.gradle.kts ]]; then
+            PROJECT_DIR="$GITHUB_WORKSPACE"
+          else
+            mkdir -p "$RUNNER_TEMP/ttai-extracted"
+            ROOT="$RUNNER_TEMP/ttai-extracted"
+            mapfile -d '' archives < <(find "$GITHUB_WORKSPACE" -maxdepth 4 -type f -iname '*.zip' -not -path '*/.git/*' -print0)
+            if [[ "${#archives[@]}" -eq 0 ]]; then
+              echo "ERROR: No root Gradle project or ZIP source found."
+              exit 1
+            fi
+            for archive in "${archives[@]}"; do
+              target="$ROOT/$(basename "${archive%.zip}")"
+              mkdir -p "$target"
+              echo "Extracting $archive"
+              unzip -oq "$archive" -d "$target"
             done
-          done
-          settings_file=$(find "$ROOT" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          if [ -z "$settings_file" ]; then
-            echo 'ERROR: settings.gradle/settings.gradle.kts nahi mila. ZIP mein Android project nahi hai.'
-            find "$ROOT" -maxdepth 6 -type f | head -160
+            for round in 1 2 3 4; do
+              mapfile -d '' nested < <(find "$ROOT" -type f -iname '*.zip' -print0)
+              [[ "${#nested[@]}" -gt 0 ]] || break
+              for archive in "${nested[@]}"; do
+                target="${archive%.zip}-extracted"
+                if [[ ! -d "$target" ]]; then
+                  mkdir -p "$target"
+                  unzip -oq "$archive" -d "$target"
+                fi
+              done
+            done
+            settings_file=$(find "$ROOT" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+            if [[ -z "$settings_file" ]]; then
+              echo "ERROR: settings.gradle(.kts) not found in ZIP sources."
+              find "$ROOT" -maxdepth 6 -type f | head -160
+              exit 1
+            fi
+            PROJECT_DIR="$(dirname "$settings_file")"
+          fi
+          if [[ ! -f "$PROJECT_DIR/app/build.gradle" && ! -f "$PROJECT_DIR/app/build.gradle.kts" ]]; then
+            echo "ERROR: app/build.gradle(.kts) missing in $PROJECT_DIR"
+            find "$PROJECT_DIR" -maxdepth 4 -type f | head -120
             exit 1
           fi
-          project_dir="$(dirname "$settings_file")"
-          if [ ! -f "$project_dir/app/build.gradle" ] && [ ! -f "$project_dir/app/build.gradle.kts" ]; then
-            echo "ERROR: Gradle project mila ($project_dir), lekin app/build.gradle nahi mila."
-            find "$project_dir" -maxdepth 4 -type f | head -100
-            exit 1
-          fi
-          echo "ANDROID_PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
-          echo "Android project found: $project_dir"
+          echo "ANDROID_PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project: $PROJECT_DIR"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
