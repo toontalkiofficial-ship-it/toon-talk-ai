@@ -359,6 +359,19 @@ class MainActivity : AppCompatActivity() {
         setBusy(true, if (video) "AI video ban raha hai. Ismein kuch minute lag sakte hain..." else "AI image ban rahi hai...")
         executor.execute {
             try {
+                var requestAccessToken = accessToken
+                if (useBackend) {
+                    val refreshToken = prefs.getString("supabase_refresh_token", null)
+                    if (!refreshToken.isNullOrBlank()) {
+                        val refreshed = supabaseAuth.refreshSession(refreshToken)
+                        requestAccessToken = refreshed.accessToken
+                        prefs.edit()
+                            .putString("supabase_access_token", refreshed.accessToken)
+                            .putString("supabase_refresh_token", refreshed.refreshToken ?: refreshToken)
+                            .putString("supabase_email", refreshed.email ?: prefs.getString("supabase_email", ""))
+                            .apply()
+                    }
+                }
                 val encoded = URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
                 val imageModel = when (selectedImageModelPosition) {
                     0 -> "black-forest-labs/flux.1-schnell"
@@ -383,7 +396,7 @@ class MainActivity : AppCompatActivity() {
                     requestMethod = if (useBackend) "POST" else "GET"
                     connectTimeout = 30000
                     readTimeout = if (useBackend) 125000 else if (video) 240000 else 180000
-                    setRequestProperty("Authorization", "Bearer ${if (useBackend) accessToken else key}")
+                    setRequestProperty("Authorization", "Bearer ${if (useBackend) requestAccessToken else key}")
                     setRequestProperty("Accept", if (video) "video/mp4, application/json, */*" else "image/*, application/json")
                     if (useBackend) {
                         setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
