@@ -226,6 +226,11 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putString("pollinations_key", key).apply()
         val selectedImageModelPosition = imageModelInput.selectedItemPosition
         val selectedVideoModelPosition = videoModelInput.selectedItemPosition
+        // Prevent saving stale output if the next generation fails.
+        generatedVideoFile = null
+        saveButton.visibility = View.GONE
+        resultImage.visibility = View.GONE
+        resultVideo.visibility = View.GONE
         setBusy(true, if (video) "AI video ban raha hai. Ismein kuch minute lag sakte hain..." else "AI image ban rahi hai...")
         executor.execute {
             try {
@@ -334,6 +339,9 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
+            if (resultImage.visibility != View.VISIBLE) {
+                throw IllegalStateException("Pehle image generate karo.")
+            }
             val drawable = resultImage.drawable ?: throw IllegalStateException("Pehle image generate karo.")
             val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                 ?: throw IllegalStateException("Image save nahi ho payi. Dobara generate karo.")
