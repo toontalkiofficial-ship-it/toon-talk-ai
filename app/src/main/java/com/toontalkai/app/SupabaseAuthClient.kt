@@ -55,6 +55,19 @@ class SupabaseAuthClient(
         )
     }
 
+    fun refreshSession(refreshToken: String): AuthResult {
+        val json = request("/auth/v1/token?grant_type=refresh_token",
+            JSONObject().put("refresh_token", refreshToken), null)
+        val access = json.optString("access_token").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Session refresh nahi hua. Dobara sign in karo.")
+        return AuthResult(
+            accessToken = access,
+            refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() },
+            email = json.optJSONObject("user")?.optString("email"),
+            message = "Session refreshed."
+        )
+    }
+
     fun signOut(accessToken: String) {
         request("/auth/v1/logout", JSONObject(), accessToken)
     }
