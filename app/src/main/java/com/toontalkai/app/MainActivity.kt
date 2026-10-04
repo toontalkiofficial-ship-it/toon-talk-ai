@@ -1,6 +1,9 @@
 package com.toontalkai.app
 
 import android.graphics.BitmapFactory
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
@@ -42,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
     private var adView: AdView? = null
+    private var generatedVideoFile: File? = null
+    private lateinit var saveButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,6 +157,13 @@ class MainActivity : AppCompatActivity() {
         body.addView(resultVideo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(240)).apply {
             bottomMargin = dp(12)
         })
+        saveButton = Button(this).apply {
+            text = "Save generated media to phone"
+            isAllCaps = false
+            visibility = View.GONE
+        }
+        body.addView(saveButton, marginParams(bottom = 12))
+        saveButton.setOnClickListener { saveGeneratedMedia() }
         val note = TextView(this).apply {
             text = "Note: AI generation can use your Pollinations balance. Ad space currently uses Google's test ad ID; real earnings require your own approved AdMob app and ad-unit IDs."
             textSize = 12f
@@ -218,6 +230,9 @@ class MainActivity : AppCompatActivity() {
                             setBusy(false, "Video ready! Play button dabao.")
                             resultImage.visibility = View.GONE
                             resultVideo.visibility = View.VISIBLE
+                            generatedVideoFile = temp
+                            saveButton.text = "Save video to phone"
+                            saveButton.visibility = View.VISIBLE
                             resultVideo.setVideoURI(Uri.fromFile(temp))
                             resultVideo.setOnPreparedListener { it.isLooping = true; resultVideo.start() }
                         }
@@ -232,6 +247,9 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread {
                             setBusy(false, "Image ready! Long press karke save/share kar sakte ho.")
                             resultVideo.visibility = View.GONE
+                            generatedVideoFile = null
+                            saveButton.text = "Save image to phone"
+                            saveButton.visibility = View.VISIBLE
                             resultImage.visibility = View.VISIBLE
                             resultImage.setImageBitmap(bitmap)
                         }
@@ -244,6 +262,59 @@ class MainActivity : AppCompatActivity() {
                     setBusy(false, "Generation failed: ${e.message ?: "network error"}. Key, balance aur internet check karo.")
                 }
             }
+        }
+    }
+
+    private fun saveGeneratedMedia() {
+        try {
+            val videoFile = generatedVideoFile
+            if (videoFile != null && videoFile.exists()) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "ToonTalkAI_${System.currentTimeMillis()}.mp4")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/ToonTalkAI")
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                }
+                val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Phone storage mein video save nahi ho paya.")
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    videoFile.inputStream().use { input -> input.copyTo(output) }
+                } ?: throw IllegalStateException("Video file open nahi ho payi.")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val completed = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                    contentResolver.update(uri, completed, null, null)
+                }
+                setStatus("Video phone ke Movies/ToonTalkAI folder mein save ho gaya.")
+                return
+            }
+
+            val drawable = resultImage.drawable ?: throw IllegalStateException("Pehle image generate karo.")
+            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: throw IllegalStateException("Image save nahi ho payi. Dobara generate karo.")
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "ToonTalkAI_${System.currentTimeMillis()}.png")
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ToonTalkAI")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Phone storage mein image save nahi ho payi.")
+            contentResolver.openOutputStream(uri)?.use { output ->
+                if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw IllegalStateException("Image write nahi ho payi.")
+                }
+            } ?: throw IllegalStateException("Image file open nahi ho payi.")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val completed = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                contentResolver.update(uri, completed, null, null)
+            }
+            setStatus("Image phone ke Pictures/ToonTalkAI folder mein save ho gayi.")
+        } catch (e: Exception) {
+            setStatus("Save failed: ${e.message ?: "phone storage error"}")
         }
     }
 
