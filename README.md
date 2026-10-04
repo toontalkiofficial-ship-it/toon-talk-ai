@@ -12,6 +12,9 @@ Android app for creating cartoon images and short AI videos through Pollinations
 ## Build APK
 GitHub Actions builds a debug APK on each push to `main`. Open the repository's **Actions** tab, open the latest successful **Build Toon Talk AI APK** run, and download the `Toon-Talk-AI-APK` artifact.
 
+## Privacy policy draft
+`PRIVACY_POLICY.md` is a starting draft only. It is not yet a published public policy: add a monitored support email, verify all disclosures against the final build, and publish it at a stable public URL before launch.
+
 ## Before a public release
 1. Create/register the app's Pollinations App Key and implement its OAuth/BYOP flow if the app should connect users without asking them to paste their own API key. Do not embed a secret `sk_` key in the APK.
 2. Create an AdMob app and production ad unit. Set Gradle project properties `ADMOB_APP_ID` and `ADMOB_BANNER_ID` in the build environment. Do not publish with test ad IDs.

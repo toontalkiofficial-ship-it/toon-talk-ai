@@ -1,6 +1,9 @@
 package com.toontalkai.app
 
 import android.graphics.BitmapFactory
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
@@ -15,6 +18,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
@@ -34,14 +39,19 @@ class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("toon_talk_private", MODE_PRIVATE) }
     private lateinit var apiKeyInput: EditText
     private lateinit var promptInput: EditText
+    private lateinit var imageModelInput: Spinner
+    private lateinit var videoModelInput: Spinner
     private lateinit var status: TextView
     private lateinit var resultImage: ImageView
     private lateinit var resultVideo: VideoView
     private lateinit var progress: ProgressBar
     private lateinit var connectButton: Button
+    private lateinit var clearKeyButton: Button
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
     private var adView: AdView? = null
+    private var generatedVideoFile: File? = null
+    private lateinit var saveButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +67,11 @@ class MainActivity : AppCompatActivity() {
                 prefs.edit().putString("pollinations_key", key).apply()
                 setStatus("Key is device par save ho gayi. Generate button se AI connection test karo.")
             }
+        }
+        clearKeyButton.setOnClickListener {
+            prefs.edit().remove("pollinations_key").apply()
+            apiKeyInput.text.clear()
+            setStatus("Saved API key is device se remove kar di gayi.")
         }
         imageButton.setOnClickListener { generateMedia(video = false) }
         videoButton.setOnClickListener { generateMedia(video = true) }
@@ -113,7 +128,39 @@ class MainActivity : AppCompatActivity() {
             text = "Save API Key"
             isAllCaps = false
         }
-        body.addView(connectButton, marginParams(top = 8, bottom = 18))
+        body.addView(connectButton, marginParams(top = 8))
+        clearKeyButton = Button(this).apply {
+            text = "Remove saved API key"
+            isAllCaps = false
+        }
+        body.addView(clearKeyButton, marginParams(top = 2, bottom = 18))
+        body.addView(label("Image quality / model"))
+        imageModelInput = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf(
+                    "Budget — FLUX Schnell",
+                    "Balanced — FLUX",
+                    "Premium — FLUX.2 Pro",
+                    "Premium — GPT Image"
+                )
+            )
+        }
+        body.addView(imageModelInput, marginParams(top = 4, bottom = 12))
+        body.addView(label("Video quality / model"))
+        videoModelInput = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf(
+                    "Budget — Seedance 1 Pro Fast",
+                    "Balanced — Veo 3.1 Fast",
+                    "Premium — Seedance 2.0"
+                )
+            )
+        }
+        body.addView(videoModelInput, marginParams(top = 4, bottom = 12))
         body.addView(label("Describe your scene"))
         promptInput = EditText(this).apply {
             hint = "Example: Debu, a young village boy in a blue shirt, cinematic 3D cartoon style..."
@@ -152,8 +199,15 @@ class MainActivity : AppCompatActivity() {
         body.addView(resultVideo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(240)).apply {
             bottomMargin = dp(12)
         })
+        saveButton = Button(this).apply {
+            text = "Save generated media to phone"
+            isAllCaps = false
+            visibility = View.GONE
+        }
+        body.addView(saveButton, marginParams(bottom = 12))
+        saveButton.setOnClickListener { saveGeneratedMedia() }
         val note = TextView(this).apply {
-            text = "Note: AI generation can use your Pollinations balance. Ad space currently uses Google's test ad ID; real earnings require your own approved AdMob app and ad-unit IDs."
+            text = "Model cost and availability can change. Check Pollinations model pricing before generating; premium models may use more balance. Ads currently use Google test IDs and do not earn revenue."
             textSize = 12f
             setTextColor(Color.rgb(105, 99, 125))
         }
@@ -181,14 +235,32 @@ class MainActivity : AppCompatActivity() {
             return
         }
         prefs.edit().putString("pollinations_key", key).apply()
+        val selectedImageModelPosition = imageModelInput.selectedItemPosition
+        val selectedVideoModelPosition = videoModelInput.selectedItemPosition
+        // Prevent saving stale output if the next generation fails.
+        generatedVideoFile = null
+        saveButton.visibility = View.GONE
+        resultImage.visibility = View.GONE
+        resultVideo.visibility = View.GONE
         setBusy(true, if (video) "AI video ban raha hai. Ismein kuch minute lag sakte hain..." else "AI image ban rahi hai...")
         executor.execute {
             try {
                 val encoded = URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
+                val imageModel = when (selectedImageModelPosition) {
+                    0 -> "black-forest-labs/flux.1-schnell"
+                    1 -> "flux"
+                    2 -> "black-forest-labs/flux.2-pro"
+                    else -> "openai/gpt-image-1.5"
+                }
+                val videoModel = when (selectedVideoModelPosition) {
+                    0 -> "bytedance/seedance-1-pro-fast"
+                    1 -> "google/veo-3.1-fast"
+                    else -> "bytedance/seedance-2.0"
+                }
                 val endpoint = if (video) {
-                    "https://gen.pollinations.ai/video/$encoded?model=google%2Fveo-3.1-fast&duration=4"
+                    "https://gen.pollinations.ai/video/$encoded?model=${URLEncoder.encode(videoModel, "UTF-8")}&duration=4"
                 } else {
-                    "https://gen.pollinations.ai/image/$encoded?model=flux&width=1024&height=1024&safe=true"
+                    "https://gen.pollinations.ai/image/$encoded?model=${URLEncoder.encode(imageModel, "UTF-8")}&width=1024&height=1024&safe=true"
                 }
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -218,6 +290,9 @@ class MainActivity : AppCompatActivity() {
                             setBusy(false, "Video ready! Play button dabao.")
                             resultImage.visibility = View.GONE
                             resultVideo.visibility = View.VISIBLE
+                            generatedVideoFile = temp
+                            saveButton.text = "Save video to phone"
+                            saveButton.visibility = View.VISIBLE
                             resultVideo.setVideoURI(Uri.fromFile(temp))
                             resultVideo.setOnPreparedListener { it.isLooping = true; resultVideo.start() }
                         }
@@ -232,6 +307,9 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread {
                             setBusy(false, "Image ready! Long press karke save/share kar sakte ho.")
                             resultVideo.visibility = View.GONE
+                            generatedVideoFile = null
+                            saveButton.text = "Save image to phone"
+                            saveButton.visibility = View.VISIBLE
                             resultImage.visibility = View.VISIBLE
                             resultImage.setImageBitmap(bitmap)
                         }
@@ -244,6 +322,62 @@ class MainActivity : AppCompatActivity() {
                     setBusy(false, "Generation failed: ${e.message ?: "network error"}. Key, balance aur internet check karo.")
                 }
             }
+        }
+    }
+
+    private fun saveGeneratedMedia() {
+        try {
+            val videoFile = generatedVideoFile
+            if (videoFile != null && videoFile.exists()) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "ToonTalkAI_${System.currentTimeMillis()}.mp4")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/ToonTalkAI")
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                }
+                val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Phone storage mein video save nahi ho paya.")
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    videoFile.inputStream().use { input -> input.copyTo(output) }
+                } ?: throw IllegalStateException("Video file open nahi ho payi.")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val completed = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                    contentResolver.update(uri, completed, null, null)
+                }
+                setStatus("Video phone ke Movies/ToonTalkAI folder mein save ho gaya.")
+                return
+            }
+
+            if (resultImage.visibility != View.VISIBLE) {
+                throw IllegalStateException("Pehle image generate karo.")
+            }
+            val drawable = resultImage.drawable ?: throw IllegalStateException("Pehle image generate karo.")
+            val bitmap = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: throw IllegalStateException("Image save nahi ho payi. Dobara generate karo.")
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "ToonTalkAI_${System.currentTimeMillis()}.png")
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ToonTalkAI")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Phone storage mein image save nahi ho payi.")
+            contentResolver.openOutputStream(uri)?.use { output ->
+                if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw IllegalStateException("Image write nahi ho payi.")
+                }
+            } ?: throw IllegalStateException("Image file open nahi ho payi.")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val completed = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                contentResolver.update(uri, completed, null, null)
+            }
+            setStatus("Image phone ke Pictures/ToonTalkAI folder mein save ho gayi.")
+        } catch (e: Exception) {
+            setStatus("Save failed: ${e.message ?: "phone storage error"}")
         }
     }
 
