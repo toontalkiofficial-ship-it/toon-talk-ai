@@ -386,6 +386,7 @@ class MainActivity : AppCompatActivity() {
                     setRequestProperty("Authorization", "Bearer ${if (useBackend) accessToken else key}")
                     setRequestProperty("Accept", if (video) "video/mp4, application/json, */*" else "image/*, application/json")
                     if (useBackend) {
+                        setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json")
                     }
