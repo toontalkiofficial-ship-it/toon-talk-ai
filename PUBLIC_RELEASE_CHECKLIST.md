@@ -12,14 +12,14 @@ This checklist tracks work that must be implemented and verified before a public
 
 ## Release blockers and acceptance criteria
 
-- [ ] **AI provider integration:** verify current Pollinations authentication, model names, endpoint response formats, pricing, rate limits, and terms. Test successful and failed image/video requests against real authorized credentials.
+- [ ] **AI provider integration:** model selectors and provider-key removal control exist. Verify current Pollinations authentication, model names, endpoint response formats, pricing, rate limits, and terms. Test successful and failed image/video requests against real authorized credentials.
 - [ ] **Protect provider credentials:** never embed a shared secret in the APK. For a managed public service, route requests through a backend that stores secrets server-side, authenticates users, enforces quotas, and rate-limits requests. If keeping bring-your-own-key, explain this clearly and never upload the user's key.
 - [ ] **User accounts:** implement secure registration/login, session handling, logout, account deletion, and per-user data isolation using a selected auth/backend provider.
 - [ ] **Credits and budget limits:** define per-model prices from verified provider costs; reserve/debit credits server-side; handle failures/refunds, duplicate taps, concurrency, and abuse. Never trust client-supplied prices or balances.
-- [ ] **Generated media:** verify image/video playback, persistent save/share, progress/error states, request cancellation, and handling of large files on real devices.
+- [ ] **Generated media:** save-to-phone code exists and generation hides stale output before a new request; verify image/video playback, persistent save/share, progress/error states, request cancellation, and handling of large files on real devices.
 - [ ] **Ads:** create the production AdMob app and ad units, configure the real App ID and unit IDs in CI secrets/properties, add required privacy/consent flows, and keep test ads during development.
 - [ ] **Payments:** choose a payment provider and confirm Google Play Billing requirements for digital goods before implementing purchases. Verify receipts server-side and prevent duplicate crediting.
-- [ ] **Privacy and safety:** publish a privacy policy and support contact; disclose AI provider/data handling, ads, analytics, retention, account deletion, and content restrictions.
+- [ ] **Privacy and safety:** `PRIVACY_POLICY.md` draft exists, but it is not published. Add a monitored support contact; verify disclosures against the final build; publish at a stable public URL; disclose AI provider/data handling, ads, analytics, retention, account deletion, and content restrictions.
 - [ ] **Production release:** add automated tests, crash/error monitoring, release signing secrets, a signed Android App Bundle, and Play Console testing.
 - [ ] **Device acceptance test:** verify fresh install, no API key, invalid key, insufficient balance, offline/slow network, image success/failure, video success/failure, repeated taps, rotation/process death, and account isolation.
 
