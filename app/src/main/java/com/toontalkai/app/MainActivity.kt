@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultVideo: VideoView
     private lateinit var progress: ProgressBar
     private lateinit var connectButton: Button
+    private lateinit var clearKeyButton: Button
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
     private var adView: AdView? = null
@@ -66,6 +67,11 @@ class MainActivity : AppCompatActivity() {
                 prefs.edit().putString("pollinations_key", key).apply()
                 setStatus("Key is device par save ho gayi. Generate button se AI connection test karo.")
             }
+        }
+        clearKeyButton.setOnClickListener {
+            prefs.edit().remove("pollinations_key").apply()
+            apiKeyInput.text.clear()
+            setStatus("Saved API key is device se remove kar di gayi.")
         }
         imageButton.setOnClickListener { generateMedia(video = false) }
         videoButton.setOnClickListener { generateMedia(video = true) }
@@ -122,7 +128,12 @@ class MainActivity : AppCompatActivity() {
             text = "Save API Key"
             isAllCaps = false
         }
-        body.addView(connectButton, marginParams(top = 8, bottom = 18))
+        body.addView(connectButton, marginParams(top = 8))
+        clearKeyButton = Button(this).apply {
+            text = "Remove saved API key"
+            isAllCaps = false
+        }
+        body.addView(clearKeyButton, marginParams(top = 2, bottom = 18))
         body.addView(label("Image quality / model"))
         imageModelInput = Spinner(this).apply {
             adapter = ArrayAdapter(
