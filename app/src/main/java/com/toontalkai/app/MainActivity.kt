@@ -103,7 +103,6 @@ class MainActivity : AppCompatActivity() {
         apiKeyInput = EditText(this).apply {
             hint = "Paste your authorized sk_ API key"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            singleLine = true
             setTextColor(Color.BLACK)
             setHintTextColor(Color.GRAY)
             setPadding(dp(12), dp(10), dp(12), dp(10))
