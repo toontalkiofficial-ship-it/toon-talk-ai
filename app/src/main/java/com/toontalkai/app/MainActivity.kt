@@ -55,6 +55,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!SupabaseAuth.hasSession(this)) {
+            startActivity(android.content.Intent(this, AuthActivity::class.java))
+            finish()
+            return
+        }
         window.statusBarColor = Color.rgb(23, 20, 43)
         window.navigationBarColor = Color.rgb(23, 20, 43)
         buildUi()
@@ -113,7 +118,17 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.rgb(91, 87, 110))
         }
         body.addView(title)
-        body.addView(subtitle, marginParams(top = 4, bottom = 18))
+        body.addView(subtitle, marginParams(top = 4, bottom = 8))
+        val accountButton = Button(this).apply {
+            text = "Signed in: ${SupabaseAuth.userEmail(this@MainActivity).ifBlank { "account" }} — Sign out"
+            isAllCaps = false
+            setOnClickListener {
+                SupabaseAuth.signOut(this@MainActivity)
+                startActivity(android.content.Intent(this@MainActivity, AuthActivity::class.java))
+                finish()
+            }
+        }
+        body.addView(accountButton, marginParams(bottom = 18))
         body.addView(label("Pollinations connection"))
         apiKeyInput = EditText(this).apply {
             hint = "Paste your authorized sk_ API key"
