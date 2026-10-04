@@ -33,8 +33,7 @@ alter table public.credit_ledger enable row level security;
 alter table public.generation_jobs enable row level security;
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile" on public.profiles for select to authenticated using (auth.uid() = id);
-drop policy if exists "Users can update own display name" on public.profiles;
-create policy "Users can update own display name" on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+-- No client profile-update policy yet; trusted functions will validate allowed fields.
 drop policy if exists "Users can read own credit ledger" on public.credit_ledger;
 create policy "Users can read own credit ledger" on public.credit_ledger for select to authenticated using (auth.uid() = user_id);
 drop policy if exists "Users can read own generation jobs" on public.generation_jobs;
