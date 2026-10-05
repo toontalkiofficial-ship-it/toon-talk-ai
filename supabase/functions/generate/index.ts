@@ -72,6 +72,8 @@ Deno.serve(async (req: Request) => {
     if (message.includes("insufficient_credits")) return json({ error: "insufficient_credits" }, 402);
     if (message.includes("account_unavailable")) return json({ error: "account_unavailable" }, 403);
     if (message.includes("duplicate_request")) return json({ error: "duplicate_request" }, 409);
+    if (message.includes("rate_limited_hour")) return json({ error: "rate_limited" }, 429);
+    if (message.includes("generation_concurrency_limit")) return json({ error: "too_many_active_generations" }, 429);
     return json({ error: "reservation_failed" }, 500);
   }
   const row = Array.isArray(reservation) ? reservation[0] : reservation;
