@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "com.toontalkai.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.toontalkai.app"
         minSdk = 23
-        targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.2.0"
         val adMobAppId = (project.findProperty("ADMOB_APP_ID") as String?)
             ?: System.getenv("ADMOB_APP_ID")
             ?: "ca-app-pub-3940256099942544~3347511713"
