@@ -13,16 +13,33 @@ android {
         targetSdk = 36
         versionCode = 3
         versionName = "1.2.0"
-        val adMobAppId = (project.findProperty("ADMOB_APP_ID") as String?)
-            ?: System.getenv("ADMOB_APP_ID")
-            ?: "ca-app-pub-3940256099942544~3347511713"
-        val adMobBannerId = (project.findProperty("ADMOB_BANNER_ID") as String?)
-            ?: System.getenv("ADMOB_BANNER_ID")
-            ?: "ca-app-pub-3940256099942544/6300978111"
+        val adMobAppId = (project.findProperty("ADMOB_APP_ID") as String?) ?: System.getenv("ADMOB_APP_ID") ?: "ca-app-pub-3940256099942544~3347511713"
+        val adMobBannerId = (project.findProperty("ADMOB_BANNER_ID") as String?) ?: System.getenv("ADMOB_BANNER_ID") ?: "ca-app-pub-3940256099942544/6300978111"
         manifestPlaceholders["adMobAppId"] = adMobAppId
         buildConfigField("String", "ADMOB_BANNER_ID", "\"$adMobBannerId\"")
         buildConfigField("String", "SUPABASE_URL", "\"${(project.findProperty("SUPABASE_URL") as String?) ?: System.getenv("SUPABASE_URL") ?: ""}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${(project.findProperty("SUPABASE_PUBLISHABLE_KEY") as String?) ?: System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: ""}\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = System.getenv("RELEASE_KEYSTORE_PATH")
+            val storePasswordValue = System.getenv("RELEASE_STORE_PASSWORD")
+            val keyAliasValue = System.getenv("RELEASE_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("RELEASE_KEY_PASSWORD")
+            if (!storeFilePath.isNullOrBlank() && !storePasswordValue.isNullOrBlank() && !keyAliasValue.isNullOrBlank() && !keyPasswordValue.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     buildFeatures { buildConfig = true }
