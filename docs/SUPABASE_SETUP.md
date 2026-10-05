@@ -41,7 +41,7 @@ New accounts currently receive **zero credits by design**; no welcome grant or p
 
 ## Not launch-ready yet
 - Credit costs must be verified against current Pollinations prices and adjusted to include a safety margin.
-- No verified payment flow / Google Play Billing credit purchase, welcome grant, rate limiting, durable async video jobs, durable background video processing, or production AdMob IDs. Account deletion UI and automatic session refresh are now implemented in the Android client, but the `account-delete` function must be deployed.
+- No verified payment flow / Google Play Billing credit purchase, welcome grant, durable async video jobs, durable background video processing, or production AdMob IDs. Server-side per-user generation rate/concurrency limits are now implemented in the latest migration. Account deletion UI and automatic session refresh are now implemented in the Android client, but the `account-delete` function must be deployed.
 - No signed release APK/AAB, privacy-policy publication, or Play Console launch validation.
 - The current server-side provider key is a shared app expense. Set a strict budget/monitoring policy before inviting public users.
 
