@@ -360,7 +360,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val imageModel = when (selectedImageModelPosition) {
                     0 -> "black-forest-labs/flux.1-schnell"
-                    1 -> "flux"
+                    1 -> "black-forest-labs/flux.1-schnell"
                     2 -> "black-forest-labs/flux.2-pro"
                     else -> "openai/gpt-image-1.5"
                 }
