@@ -75,6 +75,10 @@ class SupabaseAuthClient(
     fun getMyProfile(accessToken: String): JSONObject =
         request("/functions/v1/me", null, accessToken)
 
+    fun deleteAccount(accessToken: String) {
+        request("/functions/v1/account-delete", JSONObject(), accessToken)
+    }
+
     private fun request(path: String, body: JSONObject?, accessToken: String?): JSONObject {
         require(projectUrl.startsWith("https://")) { "Supabase Project URL app mein configured nahi hai." }
         require(publishableKey.isNotBlank()) { "Supabase publishable key app mein configured nahi hai." }
