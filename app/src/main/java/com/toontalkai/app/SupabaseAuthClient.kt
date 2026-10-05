@@ -84,7 +84,12 @@ class SupabaseAuthClient(
         require(publishableKey.isNotBlank()) { "Supabase publishable key app mein configured nahi hai." }
         val base = projectUrl.trimEnd('/')
         val conn = (URL(base + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = if (path.endsWith("/logout")) "POST" else if (path.startsWith("/functions/")) "GET" else "POST"
+            requestMethod = when {
+                path.endsWith("/logout") -> "POST"
+                path.endsWith("/functions/v1/me") -> "GET"
+                path.startsWith("/functions/") -> "POST"
+                else -> "POST"
+            }
             connectTimeout = 20000
             readTimeout = 25000
             setRequestProperty("apikey", publishableKey)
