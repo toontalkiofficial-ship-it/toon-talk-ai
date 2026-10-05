@@ -5,7 +5,7 @@ Supabase is used for Android email authentication, user profiles, credit ledger,
 ## Already configured
 - The project URL and publishable key are saved as GitHub Actions repository secrets named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
 - The base tables `profiles`, `credit_ledger`, and `generation_jobs` have been created in the Supabase project.
-- Android account sign-up/sign-in and the secure `generate` Edge Function code are in the repository.
+- Android account sign-up/sign-in, automatic session refresh, credit balance display, account deletion client, and the secure `generate` Edge Function code are in the repository.
 
 ## Required deployment steps
 
@@ -21,9 +21,9 @@ In Supabase Dashboard → Edge Functions → Secrets, add:
 
 Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to Edge Functions automatically. Never copy the service-role key into GitHub Actions or the Android app.
 
-### 3. Deploy the `generate` Edge Function
-The source is `supabase/functions/generate/index.ts`. Deploy it to the same Supabase project. If using the Dashboard editor, create a function named exactly `generate` and deploy the full file contents. If deploying with Supabase CLI, run from the repository root:
-`supabase functions deploy generate --project-ref YOUR_PROJECT_REF`
+### 3. Deploy the Edge Functions
+The sources are `supabase/functions/generate/index.ts` and `supabase/functions/account-delete/index.ts`. Deploy both to the same Supabase project. If using the Dashboard editor, create a function named exactly `generate` and deploy the full file contents. If deploying with Supabase CLI, run from the repository root:
+`supabase functions deploy generate --project-ref YOUR_PROJECT_REF` and `supabase functions deploy account-delete --project-ref YOUR_PROJECT_REF`
 Do not put secrets in source code. Confirm the deployed function uses the secrets above.
 
 The existing `me` function source is `supabase/functions/me/index.ts`; it can be deployed separately if you want the profile/balance endpoint, but the current Android generator calls `generate`.
@@ -41,7 +41,7 @@ New accounts currently receive **zero credits by design**; no welcome grant or p
 
 ## Not launch-ready yet
 - Credit costs must be verified against current Pollinations prices and adjusted to include a safety margin.
-- No verified payment flow / Google Play Billing credit purchase, welcome grant, rate limiting, durable async video jobs, account deletion UX, automatic session refresh, or production AdMob IDs.
+- No verified payment flow / Google Play Billing credit purchase, welcome grant, rate limiting, durable async video jobs, durable background video processing, or production AdMob IDs. Account deletion UI and automatic session refresh are now implemented in the Android client, but the `account-delete` function must be deployed.
 - No signed release APK/AAB, privacy-policy publication, or Play Console launch validation.
 - The current server-side provider key is a shared app expense. Set a strict budget/monitoring policy before inviting public users.
 
