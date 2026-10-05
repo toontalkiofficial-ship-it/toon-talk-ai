@@ -31,13 +31,11 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val prefs by lazy { getSharedPreferences("toon_talk_private", MODE_PRIVATE) }
-    private lateinit var apiKeyInput: EditText
     private lateinit var authNameInput: EditText
     private lateinit var authEmailInput: EditText
     private lateinit var authPasswordInput: EditText
@@ -53,28 +51,35 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultImage: ImageView
     private lateinit var resultVideo: VideoView
     private lateinit var progress: ProgressBar
-    private lateinit var connectButton: Button
-    private lateinit var clearKeyButton: Button
     private lateinit var imageButton: Button
     private lateinit var videoButton: Button
     private var adView: AdView? = null
     private var generatedVideoFile: File? = null
     private lateinit var saveButton: Button
+    private lateinit var creditBalanceText: TextView
+    private lateinit var deleteAccountButton: Button
+    private lateinit var privacyButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(23, 20, 43)
         window.navigationBarColor = Color.rgb(23, 20, 43)
         buildUi()
-        apiKeyInput.setText(prefs.getString("pollinations_key", ""))
         val savedEmail = prefs.getString("supabase_email", null)
         authStatus.text = if (prefs.getString("supabase_access_token", null) != null) {
-            "Signed in as ${savedEmail ?: "your account"} (saved session; sign in again if it expires)."
+            "Signed in as ${savedEmail ?: "your account"}."
         } else {
-            "Create an account or sign in to prepare your public profile."
+            "Create an account or sign in to start generating."
         }
+        refreshAccountState()
         signUpButton.setOnClickListener { performAuth(signUp = true) }
         signInButton.setOnClickListener { performAuth(signUp = false) }
+        deleteAccountButton.setOnClickListener { confirmDeleteAccount() }
+        privacyButton.setOnClickListener {
+            try {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://github.com/toontalkiofficial-ship-it/toon-talk-ai/blob/main/PRIVACY_POLICY.md")))
+            } catch (_: Exception) { setStatus("Privacy policy link open nahi ho paya.") }
+        }
         signOutButton.setOnClickListener {
             val token = prefs.getString("supabase_access_token", null)
             signOutButton.isEnabled = false
@@ -83,27 +88,16 @@ class MainActivity : AppCompatActivity() {
                 try { if (token != null) supabaseAuth.signOut(token) } catch (e: Exception) {
                     message = "Local session cleared. Server sign-out: ${e.message ?: "unavailable"}"
                 }
-                prefs.edit().remove("supabase_access_token").remove("supabase_refresh_token")
-                    .remove("supabase_email").apply()
+                prefs.edit().remove("supabase_access_token").remove("supabase_refresh_token").remove("supabase_email").apply()
                 runOnUiThread {
                     signOutButton.isEnabled = true
                     authStatus.text = message
+                    creditBalanceText.text = "Credits: —"
+                    deleteAccountButton.isEnabled = false
+                    imageButton.isEnabled = false
+                    videoButton.isEnabled = false
                 }
             }
-        }
-        connectButton.setOnClickListener {
-            val key = apiKeyInput.text.toString().trim()
-            if (!key.startsWith("sk_")) {
-                setStatus("Pollinations API key chahiye. Pollinations account se apni authorized key paste karo.")
-            } else {
-                prefs.edit().putString("pollinations_key", key).apply()
-                setStatus("Key is device par save ho gayi. Generate button se AI connection test karo.")
-            }
-        }
-        clearKeyButton.setOnClickListener {
-            prefs.edit().remove("pollinations_key").apply()
-            apiKeyInput.text.clear()
-            setStatus("Saved API key is device se remove kar di gayi.")
         }
         imageButton.setOnClickListener { generateMedia(video = false) }
         videoButton.setOnClickListener { generateMedia(video = true) }
@@ -180,26 +174,28 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.rgb(66, 61, 84))
         }
         body.addView(authStatus, marginParams(top = 4, bottom = 18))
-        body.addView(label("Pollinations connection"))
-        apiKeyInput = EditText(this).apply {
-            hint = "Paste your authorized sk_ API key"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setTextColor(Color.BLACK)
-            setHintTextColor(Color.GRAY)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+        creditBalanceText = TextView(this).apply {
+            text = "Credits: —"
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(38, 31, 76))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             setBackgroundColor(Color.WHITE)
         }
-        body.addView(apiKeyInput, marginParams(top = 6))
-        connectButton = Button(this).apply {
-            text = "Save API Key"
+        body.addView(creditBalanceText, marginParams(top = 4, bottom = 8))
+        val accountActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        deleteAccountButton = Button(this).apply {
+            text = "Delete account"
+            isAllCaps = false
+            isEnabled = false
+        }
+        privacyButton = Button(this).apply {
+            text = "Privacy policy"
             isAllCaps = false
         }
-        body.addView(connectButton, marginParams(top = 8))
-        clearKeyButton = Button(this).apply {
-            text = "Remove saved API key"
-            isAllCaps = false
-        }
-        body.addView(clearKeyButton, marginParams(top = 2, bottom = 18))
+        accountActions.addView(deleteAccountButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
+        accountActions.addView(privacyButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
+        body.addView(accountActions, marginParams(bottom = 18))
         body.addView(label("Image quality / model"))
         imageModelInput = Spinner(this).apply {
             adapter = ArrayAdapter(
@@ -249,7 +245,7 @@ class MainActivity : AppCompatActivity() {
         progress = ProgressBar(this).apply { visibility = View.GONE }
         body.addView(progress, marginParams(top = 14))
         status = TextView(this).apply {
-            text = "Connect AI first, then create your first scene."
+            text = "Sign in, choose a model, then create your first scene."
             textSize = 14f
             setTextColor(Color.rgb(66, 61, 84))
         }
@@ -273,7 +269,7 @@ class MainActivity : AppCompatActivity() {
         body.addView(saveButton, marginParams(bottom = 12))
         saveButton.setOnClickListener { saveGeneratedMedia() }
         val note = TextView(this).apply {
-            text = "Model cost and availability can change. Check Pollinations model pricing before generating; premium models may use more balance. Ads currently use Google test IDs and do not earn revenue."
+            text = "Credits are charged server-side. Model prices and availability can change. Ads use test IDs until production AdMob IDs are configured."
             textSize = 12f
             setTextColor(Color.rgb(105, 99, 125))
         }
@@ -323,7 +319,7 @@ class MainActivity : AppCompatActivity() {
                         .putString("supabase_email", result.email ?: email)
                         .apply()
                 }
-                runOnUiThread { authStatus.text = result.message }
+                runOnUiThread { authStatus.text = result.message; refreshAccountState() }
             } catch (e: Exception) {
                 runOnUiThread { authStatus.text = "Account error: ${e.message ?: "network error"}" }
             } finally {
@@ -336,43 +332,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun generateMedia(video: Boolean) {
-        val key = apiKeyInput.text.toString().trim().ifBlank { prefs.getString("pollinations_key", "").orEmpty() }
         val accessToken = prefs.getString("supabase_access_token", null)
-        val useBackend = !accessToken.isNullOrBlank()
         val prompt = promptInput.text.toString().trim()
-        if (!useBackend && !key.startsWith("sk_")) {
-            setStatus("Public account se generate karne ke liye pehle sign in karo. Personal mode mein authorized Pollinations API key bhi use kar sakte ho.")
-            return
-        }
-        if (prompt.length < 3) {
-            setStatus("Scene ka description likho, phir generate karo.")
-            return
-        }
-        if (!useBackend) prefs.edit().putString("pollinations_key", key).apply()
+        if (accessToken.isNullOrBlank()) { setStatus("Pehle apne account mein sign in karo."); return }
+        if (prompt.length < 3) { setStatus("Scene ka description likho, phir generate karo."); return }
+        if (prompt.length > 2000) { setStatus("Prompt 2000 characters se chhota rakho."); return }
         val selectedImageModelPosition = imageModelInput.selectedItemPosition
         val selectedVideoModelPosition = videoModelInput.selectedItemPosition
-        // Prevent saving stale output if the next generation fails.
         generatedVideoFile = null
         saveButton.visibility = View.GONE
         resultImage.visibility = View.GONE
         resultVideo.visibility = View.GONE
-        setBusy(true, if (video) "AI video ban raha hai. Ismein kuch minute lag sakte hain..." else "AI image ban rahi hai...")
+        setBusy(true, if (video) "AI video ban raha hai. Thoda time lag sakta hai..." else "AI image ban rahi hai...")
         executor.execute {
             try {
                 var requestAccessToken = accessToken
-                if (useBackend) {
-                    val refreshToken = prefs.getString("supabase_refresh_token", null)
-                    if (!refreshToken.isNullOrBlank()) {
+                val refreshToken = prefs.getString("supabase_refresh_token", null)
+                if (!refreshToken.isNullOrBlank()) {
+                    try {
                         val refreshed = supabaseAuth.refreshSession(refreshToken)
                         requestAccessToken = refreshed.accessToken
-                        prefs.edit()
-                            .putString("supabase_access_token", refreshed.accessToken)
+                        prefs.edit().putString("supabase_access_token", refreshed.accessToken)
                             .putString("supabase_refresh_token", refreshed.refreshToken ?: refreshToken)
                             .putString("supabase_email", refreshed.email ?: prefs.getString("supabase_email", ""))
                             .apply()
-                    }
+                    } catch (_: Exception) { }
                 }
-                val encoded = URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
                 val imageModel = when (selectedImageModelPosition) {
                     0 -> "black-forest-labs/flux.1-schnell"
                     1 -> "flux"
@@ -385,50 +370,47 @@ class MainActivity : AppCompatActivity() {
                     else -> "bytedance/seedance-2.0"
                 }
                 val selectedModel = if (video) videoModel else imageModel
-                val endpoint = if (useBackend) {
-                    BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/generate"
-                } else if (video) {
-                    "https://gen.pollinations.ai/video/$encoded?model=${URLEncoder.encode(videoModel, "UTF-8")}&duration=4"
-                } else {
-                    "https://gen.pollinations.ai/image/$encoded?model=${URLEncoder.encode(imageModel, "UTF-8")}&width=1024&height=1024&safe=true"
-                }
+                val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/generate"
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                    requestMethod = if (useBackend) "POST" else "GET"
+                    requestMethod = "POST"
                     connectTimeout = 30000
-                    readTimeout = if (useBackend) 125000 else if (video) 240000 else 180000
-                    setRequestProperty("Authorization", "Bearer ${if (useBackend) requestAccessToken else key}")
+                    readTimeout = 125000
+                    setRequestProperty("Authorization", "Bearer $requestAccessToken")
+                    setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                     setRequestProperty("Accept", if (video) "video/mp4, application/json, */*" else "image/*, application/json")
-                    if (useBackend) {
-                        setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json")
-                    }
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
                 }
-                if (useBackend) {
-                    val requestBody = JSONObject()
-                        .put("kind", if (video) "video" else "image")
-                        .put("model", selectedModel)
-                        .put("prompt", prompt)
-                        .put("idempotencyKey", java.util.UUID.randomUUID().toString())
-                    connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(requestBody.toString()) }
-                }
+                val requestBody = JSONObject().put("kind", if (video) "video" else "image")
+                    .put("model", selectedModel).put("prompt", prompt)
+                    .put("idempotencyKey", java.util.UUID.randomUUID().toString())
+                connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(requestBody.toString()) }
                 try {
                     val code = connection.responseCode
                     if (code !in 200..299) {
                         val errorText = (connection.errorStream ?: connection.inputStream).bufferedReader().use { it.readText() }
-                        throw IllegalStateException("AI service error ($code): ${errorText.take(240)}")
+                        val safeMessage = try { JSONObject(errorText).optString("error") } catch (_: Exception) { "" }
+                        val message = when {
+                            code == 401 -> "Session expire ho gaya. Dobara sign in karo."
+                            code == 402 || safeMessage == "insufficient_credits" -> "Credits kam hain. Generation ke liye credits chahiye."
+                            code == 409 -> "Ye request already process ho rahi hai. Dobara submit mat karo."
+                            code == 503 -> "AI backend abhi configure nahi hua. Thodi der baad try karo."
+                            else -> "AI service error ($code). Dobara try karo."
+                        }
+                        if (code == 401) prefs.edit().remove("supabase_access_token").remove("supabase_refresh_token").apply()
+                        throw IllegalStateException(message)
                     }
                     val contentType = connection.contentType.orEmpty()
                     if (video) {
                         val temp = File(cacheDir, "toon-talk-${System.currentTimeMillis()}.mp4")
                         if (contentType.contains("json", true)) {
                             val jsonText = connection.inputStream.bufferedReader().use { it.readText() }
-                            val mediaUrl = extractMediaUrl(jsonText)
-                                ?: throw IllegalStateException("Video service ne MP4 URL return nahi kiya: ${jsonText.take(180)}")
-                            downloadVideo(mediaUrl, key, temp)
+                            val mediaUrl = extractMediaUrl(jsonText) ?: throw IllegalStateException("Video response invalid hai. Dobara try karo.")
+                            downloadVideo(mediaUrl, temp)
                         } else {
                             connection.inputStream.use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
                         }
+                        if (temp.length() < 1024) throw IllegalStateException("Video file incomplete hai.")
                         runOnUiThread {
                             setBusy(false, "Video ready! Play button dabao.")
                             resultImage.visibility = View.GONE
@@ -438,36 +420,92 @@ class MainActivity : AppCompatActivity() {
                             saveButton.visibility = View.VISIBLE
                             resultVideo.setVideoURI(Uri.fromFile(temp))
                             resultVideo.setOnPreparedListener { it.isLooping = true; resultVideo.start() }
+                            refreshAccountState()
                         }
                     } else {
                         val bytes = connection.inputStream.use { it.readBytes() }
-                        if (contentType.contains("json", true)) {
-                            val text = String(bytes, Charsets.UTF_8)
-                            throw IllegalStateException("Image service ne image ke bajay response diya: ${text.take(180)}")
-                        }
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            ?: throw IllegalStateException("Image file open nahi hui. Dobara try karo.")
+                        if (contentType.contains("json", true)) throw IllegalStateException("Image response invalid hai. Dobara try karo.")
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IllegalStateException("Image file open nahi hui. Dobara try karo.")
                         runOnUiThread {
-                            setBusy(false, "Image ready! Long press karke save/share kar sakte ho.")
+                            setBusy(false, "Image ready! Save button se phone mein save karo.")
                             resultVideo.visibility = View.GONE
                             generatedVideoFile = null
                             saveButton.text = "Save image to phone"
                             saveButton.visibility = View.VISIBLE
                             resultImage.visibility = View.VISIBLE
                             resultImage.setImageBitmap(bitmap)
+                            refreshAccountState()
                         }
                     }
-                } finally {
-                    connection.disconnect()
-                }
+                } finally { connection.disconnect() }
             } catch (e: Exception) {
+                runOnUiThread { setBusy(false, e.message ?: "Generation failed. Dobara try karo."); refreshAccountState() }
+            }
+        }
+    }
+    private fun refreshAccountState() {
+        val token = prefs.getString("supabase_access_token", null)
+        if (token.isNullOrBlank()) {
+            creditBalanceText.text = "Credits: —"
+            deleteAccountButton.isEnabled = false
+            imageButton.isEnabled = false
+            videoButton.isEnabled = false
+            return
+        }
+        executor.execute {
+            try {
+                val profile = supabaseAuth.getMyProfile(token)
+                val balance = profile.optLong("creditBalance", 0L)
+                val displayName = profile.optJSONObject("profile")?.optString("display_name").orEmpty()
                 runOnUiThread {
-                    setBusy(false, "Generation failed: ${e.message ?: "network error"}. Key, balance aur internet check karo.")
+                    creditBalanceText.text = "Credits: $balance"
+                    deleteAccountButton.isEnabled = true
+                    imageButton.isEnabled = true
+                    videoButton.isEnabled = true
+                    if (displayName.isNotBlank()) authStatus.text = "Signed in as $displayName"
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    creditBalanceText.text = "Credits: unavailable"
+                    deleteAccountButton.isEnabled = false
+                    imageButton.isEnabled = false
+                    videoButton.isEnabled = false
+                    authStatus.text = "Account status load nahi hua. Dobara sign in karo."
                 }
             }
         }
     }
 
+    private fun confirmDeleteAccount() {
+        val token = prefs.getString("supabase_access_token", null) ?: return
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Delete account?")
+            .setMessage("Account, profile aur server-side generation/credit records delete ho jayenge. Ye action undo nahi kiya ja sakta.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete") { _, _ ->
+                deleteAccountButton.isEnabled = false
+                setStatus("Account delete ho raha hai...")
+                executor.execute {
+                    try {
+                        supabaseAuth.deleteAccount(token)
+                        prefs.edit().clear().apply()
+                        runOnUiThread {
+                            authStatus.text = "Account delete ho gaya."
+                            creditBalanceText.text = "Credits: —"
+                            imageButton.isEnabled = false
+                            videoButton.isEnabled = false
+                            setStatus("Account delete complete.")
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            deleteAccountButton.isEnabled = true
+                            setStatus("Account delete failed: " + (e.message ?: "server error"))
+                        }
+                    }
+                }
+            }
+            .show()
+    }
     private fun saveGeneratedMedia() {
         try {
             val videoFile = generatedVideoFile
@@ -524,11 +562,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun downloadVideo(mediaUrl: String, key: String, destination: File) {
+    private fun downloadVideo(mediaUrl: String, destination: File) {
         val conn = (URL(mediaUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 30000
             readTimeout = 240000
-            if (mediaUrl.startsWith("https://gen.pollinations.ai/")) setRequestProperty("Authorization", "Bearer $key")
         }
         try {
             if (conn.responseCode !in 200..299) throw IllegalStateException("Video download error: HTTP ${conn.responseCode}")
@@ -547,9 +584,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun setBusy(busy: Boolean, message: String) {
         progress.visibility = if (busy) View.VISIBLE else View.GONE
-        imageButton.isEnabled = !busy
-        videoButton.isEnabled = !busy
-        connectButton.isEnabled = !busy
+        val signedIn = !prefs.getString("supabase_access_token", null).isNullOrBlank()
+        imageButton.isEnabled = !busy && signedIn
+        videoButton.isEnabled = !busy && signedIn
         status.text = message
     }
 
