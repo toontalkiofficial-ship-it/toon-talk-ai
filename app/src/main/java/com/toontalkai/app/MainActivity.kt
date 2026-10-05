@@ -394,6 +394,8 @@ class MainActivity : AppCompatActivity() {
                             code == 401 -> "Session expire ho gaya. Dobara sign in karo."
                             code == 402 || safeMessage == "insufficient_credits" -> "Credits kam hain. Generation ke liye credits chahiye."
                             code == 409 -> "Ye request already process ho rahi hai. Dobara submit mat karo."
+                            code == 429 || safeMessage == "rate_limited" -> "Generation limit reached. Thodi der baad try karo."
+                            safeMessage == "too_many_active_generations" -> "2 generations already chal rahi hain. Pehle unke complete hone do."
                             code == 503 -> "AI backend abhi configure nahi hua. Thodi der baad try karo."
                             else -> "AI service error ($code). Dobara try karo."
                         }
