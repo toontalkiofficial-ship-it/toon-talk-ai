@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const models: Record<string, { kind: "image" | "video"; providerModel: string }> = {
   "black-forest-labs/flux.1-schnell": { kind: "image", providerModel: "black-forest-labs/flux.1-schnell" },
-  "flux": { kind: "image", providerModel: "flux" },
+  "flux": { kind: "image", providerModel: "black-forest-labs/flux.1-schnell" },
   "black-forest-labs/flux.2-pro": { kind: "image", providerModel: "black-forest-labs/flux.2-pro" },
   "openai/gpt-image-1.5": { kind: "image", providerModel: "openai/gpt-image-1.5" },
   "bytedance/seedance-1-pro-fast": { kind: "video", providerModel: "bytedance/seedance-1-pro-fast" },
