@@ -1,37 +1,35 @@
 # Toon Talk AI — Public Release Readiness
 
-This checklist tracks work that must be implemented and verified before a public launch. A successful debug APK build is not a public-release sign-off.
+This checklist separates repository implementation from production configuration and real-device/Play verification. A green debug build alone is not a public-release sign-off.
 
-## Current code observations
+## Repository implementation completed
 
-- The Android app now requires an authenticated Supabase account for generation; the shared Pollinations provider key stays server-side in the Supabase Edge Function.
-- Image and video generation requests go through the authenticated `generate` Edge Function.
-- Google Mobile Ads is integrated with Google's test IDs by default; these do not generate production revenue.
-- The current GitHub Actions workflow creates a debug APK, not a signed Play Store release bundle.
-- A public multi-user product still needs a deliberate account, billing/credits, and backend design.
+- [x] Authenticated Supabase account flow: registration, sign-in, session refresh, logout, account deletion UI.
+- [x] Per-user backend authorization for generation.
+- [x] Server-side Pollinations credential handling; no shared provider secret in the APK.
+- [x] Model allowlisting for the configured image/video choices.
+- [x] Server-side credit reservation, settlement, refund handling, and idempotency.
+- [x] Server-side rate/concurrency protection code.
+- [x] Image/video playback and save-to-phone UI.
+- [x] Google Mobile Ads banner integration with test IDs for development.
+- [x] GitHub Actions debug APK workflow.
+- [x] GitHub Actions signed Play Store AAB workflow.
+- [x] Android target/compile configuration updated for the current Play release target.
 
-## Release blockers and acceptance criteria
+## Still required before public launch
 
-- [ ] **AI provider integration:** model selectors and provider-key removal control exist. Verify current Pollinations authentication, model names, endpoint response formats, pricing, rate limits, and terms. Test successful and failed image/video requests against real authorized credentials.
-- [ ] **Protect provider credentials:** never embed a shared secret in the APK. For a managed public service, route requests through a backend that stores secrets server-side, authenticates users, enforces quotas, and rate-limits requests. If keeping bring-your-own-key, explain this clearly and never upload the user's key.
-- [x] **User accounts:** Android registration/login, session refresh, logout, account deletion UI, and per-user backend authorization are implemented. Verify the deployed `account-delete` function and real-device behavior.
-- [x] **Credits and budget limits:** server-side reservations/settlement/refunds/idempotency and model allowlisting are implemented. Still configure verified current provider costs and add production rate limits/spending ceilings.
-- [ ] **Generated media:** save-to-phone, image/video playback, stale-output clearing, and server-side charging are implemented. Verify success/failure/slow-network behavior on real devices and add durable async video processing before public scale.
-- [ ] **Ads:** production App ID/unit IDs must be created and added as `ADMOB_APP_ID` and `ADMOB_BANNER_ID` CI secrets; consent/privacy flow still needs final verification.
-- [ ] **Payments:** choose a payment provider and confirm Google Play Billing requirements for digital goods before implementing purchases. Verify receipts server-side and prevent duplicate crediting.
-- [ ] **Privacy and safety:** `PRIVACY_POLICY.md` draft exists, but it is not published. Add a monitored support contact; verify disclosures against the final build; publish at a stable public URL; disclose AI provider/data handling, ads, analytics, retention, account deletion, and content restrictions.
-- [ ] **Production release:** add automated tests, crash/error monitoring, release signing secrets, a signed Android App Bundle, and Play Console testing.
-- [ ] **Device acceptance test:** verify fresh install, no API key, invalid key, insufficient balance, offline/slow network, image success/failure, video success/failure, repeated taps, rotation/process death, and account isolation.
+- [ ] **Production backend deployment:** verify the latest Supabase migrations and deploy the `generate` and `account-delete` Edge Functions in the production project.
+- [ ] **AI provider:** configure a valid `POLLINATIONS_API_KEY`; verify all enabled model IDs, response formats, pricing, rate limits, and terms with real requests.
+- [ ] **Credit pricing:** set verified `MODEL_CREDIT_COSTS_JSON` values that cover actual provider cost plus the platform's intended margin; set production spending/rate limits.
+- [ ] **Generated media acceptance:** test image/video success, provider failure, timeout, slow network, repeated taps, stale-output clearing, playback, and save behavior on real Android devices. Durable async video processing is recommended before high-volume public scale.
+- [ ] **Ads:** create production AdMob App/Unit IDs, add `ADMOB_APP_ID` and `ADMOB_BANNER_ID` as CI secrets, and complete the applicable consent/privacy flow. Test IDs must not be used for release.
+- [ ] **Payments:** if selling credits/features, implement Google Play Billing as required and verify purchase tokens server-side before granting credits. Do not enable paid credits until this is complete.
+- [ ] **Privacy/safety:** add a monitored support contact, publish `PRIVACY_POLICY.md` at a stable public URL, and verify disclosures, retention, account deletion, AI-provider handling, advertising, analytics, and content restrictions against the final build.
+- [ ] **Release signing:** add the release keystore and signing secrets to GitHub Actions, build the signed AAB, and verify the artifact before upload.
+- [ ] **Play Console:** complete internal/closed testing, Data Safety, content rating, app access/account information, privacy-policy URL, store listing, and other required declarations.
+- [ ] **Crash/error monitoring:** add and verify a production crash/error monitoring solution before broad public rollout.
+- [ ] **Device acceptance:** fresh install, account isolation, invalid/expired session, insufficient balance, offline/slow network, image/video success/failure, rotation/process death, repeated taps, media save/playback.
 
-## Safe implementation order
+## Important boundary
 
-1. Build and install the current debug APK; record actual behavior and errors.
-2. Stabilize image/video provider calls and media save/share.
-3. Select and implement backend/authentication before introducing shared credits or server-managed keys.
-4. Add server-enforced usage limits and pricing.
-5. Configure production ads and, only if desired, payments.
-6. Complete privacy, security, and release testing before public distribution.
-
-## Configuration needed before production features
-
-Production auth, server-managed AI access, credits, and payments cannot be completed safely from Android-only code. They require selecting/authorizing the backend and AI provider, setting secrets outside source control, and defining the pricing/credit policy. Never commit API keys, signing keys, or payment secrets to the repository.
+Repository code and workflow configuration can be completed here, but production credentials, Supabase deployment, AdMob account setup, payment configuration, signing-key secrets, physical-device verification, and Play Console submission require access/actions outside the repository. Never commit those secrets to source control.
